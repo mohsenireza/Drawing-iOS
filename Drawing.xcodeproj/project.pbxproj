@@ -12,7 +12,23 @@
 		F5D60EE32289476C001DCA2D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F5D60EE12289476C001DCA2D /* Main.storyboard */; };
 		F5D60EE52289476E001DCA2D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F5D60EE42289476E001DCA2D /* Assets.xcassets */; };
 		F5D60EE82289476E001DCA2D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F5D60EE62289476E001DCA2D /* LaunchScreen.storyboard */; };
+		F5D60EF022894C2E001DCA2D /* Metron.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F5D60EEF22894C2E001DCA2D /* Metron.framework */; };
+		F5D60EF122894C2E001DCA2D /* Metron.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F5D60EEF22894C2E001DCA2D /* Metron.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F5D60EF222894C2E001DCA2D /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				F5D60EF122894C2E001DCA2D /* Metron.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		F5D60EDA2289476C001DCA2D /* Drawing.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Drawing.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -22,6 +38,7 @@
 		F5D60EE42289476E001DCA2D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F5D60EE72289476E001DCA2D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		F5D60EE92289476E001DCA2D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F5D60EEF22894C2E001DCA2D /* Metron.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metron.framework; path = Carthage/Build/iOS/Metron.framework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -29,6 +46,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F5D60EF022894C2E001DCA2D /* Metron.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -38,6 +56,7 @@
 		F5D60ED12289476C001DCA2D = {
 			isa = PBXGroup;
 			children = (
+				F5D60EEF22894C2E001DCA2D /* Metron.framework */,
 				F5D60EDC2289476C001DCA2D /* Drawing */,
 				F5D60EDB2289476C001DCA2D /* Products */,
 			);
@@ -74,6 +93,7 @@
 				F5D60ED62289476C001DCA2D /* Sources */,
 				F5D60ED72289476C001DCA2D /* Frameworks */,
 				F5D60ED82289476C001DCA2D /* Resources */,
+				F5D60EF222894C2E001DCA2D /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -283,7 +303,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = BH827H2Y5R;
+				DEVELOPMENT_TEAM = "";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Carthage/Build/iOS",
+				);
 				INFOPLIST_FILE = Drawing/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -301,7 +325,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = BH827H2Y5R;
+				DEVELOPMENT_TEAM = "";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Carthage/Build/iOS",
+				);
 				INFOPLIST_FILE = Drawing/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
