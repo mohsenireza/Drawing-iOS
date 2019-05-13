@@ -10,8 +10,9 @@ import UIKit
 import Metron
 
 class ViewController: UIViewController {
-    var startPoint : CGPoint?
-    var endPoint : CGPoint?
+    var linePointsRadius : CGFloat = 5
+    var touchStartPoint : CGPoint?
+    var touchCurrentPoint : CGPoint?
     var newStartPoint : CGPoint?
     var newEndPoint : CGPoint?
     var newLine : MyLine? = nil
@@ -26,19 +27,37 @@ class ViewController: UIViewController {
     }
     
     class MyLine{
-        var shape : CAShapeLayer?
-        var startPoint : CAShapeLayer?
-        var endPoint : CAShapeLayer?
+        var lineSegment : LineSegment?
+        var lineSegmentShape : CAShapeLayer?
+        var startPoint : Circle?
+        var startPointShape : CAShapeLayer?
+        var endPoint : Circle?
+        var endPointShape : CAShapeLayer?
         var coordinate : (start:(x:CGFloat, y:CGFloat), end:(x:CGFloat, y:CGFloat))?
         var isSticky : Bool?
         
         init() {
-            self.shape = CAShapeLayer()
-            self.startPoint = CAShapeLayer()
-            self.endPoint = CAShapeLayer()
+            self.lineSegmentShape = CAShapeLayer()
+            self.startPointShape = CAShapeLayer()
+            self.endPointShape = CAShapeLayer()
+            self.lineSegment = LineSegment(a: .zero, b: .zero)
+        }
+        
+        func setLineSegment(lineSegment : LineSegment){
+            self.lineSegment = lineSegment
+            self.lineSegmentShape?.path = lineSegment.path
+        }
+        
+        func setStartPoint(startPoint : Circle){
+            self.startPoint = startPoint
+            self.startPointShape?.path = startPoint.path
+        }
+        
+        func setEndPoint(endPoint : Circle){
+            self.endPoint = endPoint
+            self.endPointShape?.path = endPoint.path
         }
     }
-    
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -47,7 +66,7 @@ class ViewController: UIViewController {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         touchStatus = .drawLine
         let touch = touches.first
-        startPoint = touch!.location(in: self.view)
+        touchStartPoint = touch!.location(in: self.view)
         if let lines = lines{
             for line in lines.reversed(){
                 
@@ -72,12 +91,12 @@ class ViewController: UIViewController {
                 //                    break
                 //                }
                 
-                if line.startPoint!.path!.contains(startPoint!){
+                if line.startPoint!.path!.contains(touchStartPoint!){
                     touchStatus = .dragLineStartPoint
                     selectedLineForDrag = line
                     break
                 }
-                else if line.endPoint!.path!.contains(startPoint!){
+                else if line.endPoint!.path!.contains(touchStartPoint!){
                     touchStatus = .dragLineEndPoint
                     selectedLineForDrag = line
                     break
@@ -125,36 +144,32 @@ class ViewController: UIViewController {
     }
     
     func dragLineStartPoint(){
-        let deltaX = endPoint!.x - startPoint!.x
-        let deltaY = endPoint!.y - startPoint!.y
+        let deltaX = touchCurrentPoint!.x - touchStartPoint!.x
+        let deltaY = touchCurrentPoint!.y - touchStartPoint!.y
         newStartPoint = CGPoint(x:(selectedLineForDrag!.coordinate?.start.x)! + deltaX , y:(selectedLineForDrag!.coordinate?.start.y)! + deltaY)
         newEndPoint = CGPoint(x:(selectedLineForDrag!.coordinate?.end.x)!, y:(selectedLineForDrag!.coordinate?.end.y)!)
-        let (_,_) = stickToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: endPoint!, &newStartPoint!)
-        let shapePath = UIBezierPath()
-        shapePath.move(to: newStartPoint!)
-        shapePath.addLine(to: newEndPoint!)
-        selectedLineForDrag!.shape?.path = shapePath.cgPath
-        let startPointPath = UIBezierPath(ovalIn: CGRect(center: CGPoint(x: newStartPoint!.x, y: newStartPoint!.y), edges: 10))
-        selectedLineForDrag!.startPoint?.path = startPointPath.cgPath
+        let (_,_) = stickToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: touchCurrentPoint!, &newStartPoint!)
+        let lineSegment = LineSegment(a: newStartPoint!, b: newEndPoint!)
+        selectedLineForDrag!.setLineSegment(lineSegment: lineSegment)
+        let startPoint = Circle(center: CGPoint(x: newStartPoint!.x, y: newStartPoint!.y), radius: linePointsRadius)
+        selectedLineForDrag!.setStartPoint(startPoint: startPoint)
     }
     
     func dragLineEndPoint(){
-        let deltaX = endPoint!.x - startPoint!.x
-        let deltaY = endPoint!.y - startPoint!.y
+        let deltaX = touchCurrentPoint!.x - touchStartPoint!.x
+        let deltaY = touchCurrentPoint!.y - touchStartPoint!.y
         newStartPoint = CGPoint(x:(selectedLineForDrag!.coordinate?.start.x)!, y:(selectedLineForDrag!.coordinate?.start.y)!)
         newEndPoint = CGPoint(x:(selectedLineForDrag!.coordinate?.end.x)! + deltaX , y:(selectedLineForDrag!.coordinate?.end.y)! + deltaY)
-        let (_,_) = stickToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: endPoint!, &newEndPoint!)
-        let shapePath = UIBezierPath()
-        shapePath.move(to: newStartPoint!)
-        shapePath.addLine(to: newEndPoint!)
-        selectedLineForDrag!.shape?.path = shapePath.cgPath
-        let endPointPath = UIBezierPath(ovalIn: CGRect(center: CGPoint(x: newEndPoint!.x, y: newEndPoint!.y), edges: 10))
-        selectedLineForDrag!.endPoint?.path = endPointPath.cgPath
+        let (_,_) = stickToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: touchCurrentPoint!, &newEndPoint!)
+        let lineSegment = LineSegment(a: newStartPoint!, b: newEndPoint!)
+        selectedLineForDrag!.setLineSegment(lineSegment: lineSegment)
+        let endPoint = Circle(center: CGPoint(x: newEndPoint!.x, y: newEndPoint!.y), radius: linePointsRadius)
+        selectedLineForDrag!.setEndPoint(endPoint: endPoint)
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         let touch = touches.first!
-        endPoint = touch.location(in: self.view)
+        touchCurrentPoint = touch.location(in: self.view)
         
         if touchStatus == TouchStatus.dragLineStartPoint {
             dragLineStartPoint()
@@ -166,39 +181,34 @@ class ViewController: UIViewController {
             
             if(newLine == nil){
                 newLine = MyLine()
-                newLine?.shape?.strokeColor = UIColor.black.cgColor
-                newLine?.shape?.lineWidth = 4
-                newLine?.startPoint?.strokeColor = UIColor.red.cgColor
-                newLine?.startPoint?.lineWidth = 0
-                newLine?.endPoint?.strokeColor = UIColor.red.cgColor
-                newLine?.endPoint?.lineWidth = 0
+                newLine?.lineSegmentShape?.strokeColor = UIColor.black.cgColor
+                newLine?.lineSegmentShape?.lineWidth = 4
+                newLine?.startPointShape?.strokeColor = UIColor.red.cgColor
+                newLine?.startPointShape?.lineWidth = 0
+                newLine?.endPointShape?.strokeColor = UIColor.red.cgColor
+                newLine?.endPointShape?.lineWidth = 0
                 if lines?.append(newLine!) == nil{
                     lines = [newLine!]
                 }
-                self.view.layer.addSublayer(newLine!.shape!)
-                self.view.layer.addSublayer(newLine!.startPoint!)
-                self.view.layer.addSublayer(newLine!.endPoint!)
+                self.view.layer.addSublayer(newLine!.lineSegmentShape!)
+                self.view.layer.addSublayer(newLine!.startPointShape!)
+                self.view.layer.addSublayer(newLine!.endPointShape!)
             }
             let touch = touches.first
-            endPoint = touch!.location(in: self.view)
-            let (_,_) = stickToNearestPoint(currentLine: newLine!, currentPoint: endPoint!, &endPoint!)
-            let shapePath = UIBezierPath()
-            shapePath.move(to: startPoint!)
-            shapePath.addLine(to: endPoint!)
-            newLine?.shape?.path = shapePath.cgPath
-            newLine?.shape?.backgroundColor = UIColor.red.cgColor
-            let startPointPath = UIBezierPath(ovalIn: CGRect(center: CGPoint(x: startPoint!.x, y: startPoint!.y), edges: 10))
-            newLine?.startPoint?.path = startPointPath.cgPath
-            newLine?.startPoint?.backgroundColor = UIColor.red.cgColor
-            let endPointPath = UIBezierPath(ovalIn: CGRect(center: CGPoint(x: endPoint!.x, y: endPoint!.y), edges: 10))
-            newLine?.endPoint?.path = endPointPath.cgPath
-            newLine?.endPoint?.backgroundColor = UIColor.red.cgColor
+            touchCurrentPoint = touch!.location(in: self.view)
+            let (_,_) = stickToNearestPoint(currentLine: newLine!, currentPoint: touchCurrentPoint!, &touchCurrentPoint!)
+            let lineSegment = LineSegment(a: touchStartPoint!, b: touchCurrentPoint!)
+            newLine?.setLineSegment(lineSegment: lineSegment)
+            let startPoint = Circle(center: CGPoint(x: touchStartPoint!.x, y: touchStartPoint!.y), radius: linePointsRadius)
+            newLine?.setStartPoint(startPoint: startPoint)
+            let endPoint = Circle(center: CGPoint(x: touchCurrentPoint!.x, y: touchCurrentPoint!.y), radius: linePointsRadius)
+            newLine?.setEndPoint(endPoint: endPoint)
         }
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         if newLine != nil{
-            newLine?.coordinate = (start:(x:startPoint!.x , y:startPoint!.y), end:(x:endPoint!.x,y:endPoint!.y))
+            newLine?.coordinate = (start:(x:touchStartPoint!.x , y:touchStartPoint!.y), end:(x:touchCurrentPoint!.x,y:touchCurrentPoint!.y))
             newLine = nil
         }
         else if selectedLineForDrag != nil{
