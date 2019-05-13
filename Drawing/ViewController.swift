@@ -67,6 +67,7 @@ class ViewController: UIViewController {
         touchStatus = .drawLine
         let touch = touches.first
         touchStartPoint = touch!.location(in: self.view)
+        let (_,_) = snapToNearestPoint(currentPoint: touchStartPoint!, &touchStartPoint!)
         if let lines = lines{
             for line in lines.reversed(){
                 
@@ -90,7 +91,6 @@ class ViewController: UIViewController {
                 //                    }
                 //                    break
                 //                }
-                
                 if line.startPoint!.path!.contains(touchStartPoint!){
                     touchStatus = .dragLineStartPoint
                     selectedLineForDrag = line
@@ -112,17 +112,45 @@ class ViewController: UIViewController {
         return Float(sqrt(pow(deltaX, 2) + pow(deltaY, 2)))
     }
     
-    func stickToNearestPoint(currentLine : MyLine, currentPoint : CGPoint,_ pointToUpdate: inout CGPoint) -> (CGPoint? , Float?){
+    func snapToNearestPoint(currentLine : MyLine, currentPoint : CGPoint,_ pointToUpdate: inout CGPoint) -> (CGPoint? , Float?){
         var nearestPointDistance : Float
         var nearestPoint : CGPoint
         var points : [CGPoint] = Array()
         let linesExceptCurrentLine = lines?.filter({ (line) -> Bool in
             return line !== currentLine
         })
-        if linesExceptCurrentLine?.count == 0{
+        if linesExceptCurrentLine == nil || linesExceptCurrentLine?.count == 0{
             return (nil,nil)
         }
         for line in linesExceptCurrentLine!{
+            let startPoint = CGPoint(x:line.coordinate!.start.x, y:line.coordinate!.start.y )
+            let endPoint = CGPoint(x:line.coordinate!.end.x, y:line.coordinate!.end.y )
+            points.append(startPoint)
+            points.append(endPoint)
+        }
+        nearestPoint = points[0]
+        nearestPointDistance = twoPointsDistance(firstPoint: currentPoint, secondPoint: points[0])
+        for i in 1..<points.count{
+            let pointsDistance = twoPointsDistance(firstPoint: currentPoint, secondPoint: points[i])
+            if pointsDistance < nearestPointDistance {
+                nearestPoint = points[i]
+                nearestPointDistance = pointsDistance
+            }
+        }
+        if(nearestPointDistance <= 20){
+            pointToUpdate = nearestPoint
+        }
+        return (nearestPoint, nearestPointDistance)
+    }
+    
+    func snapToNearestPoint(currentPoint : CGPoint,_ pointToUpdate: inout CGPoint) -> (CGPoint? , Float?){
+        var nearestPointDistance : Float
+        var nearestPoint : CGPoint
+        var points : [CGPoint] = Array()
+        if lines == nil || lines?.count == 0 {
+            return (nil,nil)
+        }
+        for line in lines!{
             let startPoint = CGPoint(x:line.coordinate!.start.x, y:line.coordinate!.start.y )
             let endPoint = CGPoint(x:line.coordinate!.end.x, y:line.coordinate!.end.y )
             points.append(startPoint)
@@ -148,7 +176,7 @@ class ViewController: UIViewController {
         let deltaY = touchCurrentPoint!.y - touchStartPoint!.y
         newStartPoint = CGPoint(x:(selectedLineForDrag!.coordinate?.start.x)! + deltaX , y:(selectedLineForDrag!.coordinate?.start.y)! + deltaY)
         newEndPoint = CGPoint(x:(selectedLineForDrag!.coordinate?.end.x)!, y:(selectedLineForDrag!.coordinate?.end.y)!)
-        let (_,_) = stickToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: touchCurrentPoint!, &newStartPoint!)
+        let (_,_) = snapToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: touchCurrentPoint!, &newStartPoint!)
         let lineSegment = LineSegment(a: newStartPoint!, b: newEndPoint!)
         selectedLineForDrag!.setLineSegment(lineSegment: lineSegment)
         let startPoint = Circle(center: CGPoint(x: newStartPoint!.x, y: newStartPoint!.y), radius: linePointsRadius)
@@ -160,7 +188,7 @@ class ViewController: UIViewController {
         let deltaY = touchCurrentPoint!.y - touchStartPoint!.y
         newStartPoint = CGPoint(x:(selectedLineForDrag!.coordinate?.start.x)!, y:(selectedLineForDrag!.coordinate?.start.y)!)
         newEndPoint = CGPoint(x:(selectedLineForDrag!.coordinate?.end.x)! + deltaX , y:(selectedLineForDrag!.coordinate?.end.y)! + deltaY)
-        let (_,_) = stickToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: touchCurrentPoint!, &newEndPoint!)
+        let (_,_) = snapToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: touchCurrentPoint!, &newEndPoint!)
         let lineSegment = LineSegment(a: newStartPoint!, b: newEndPoint!)
         selectedLineForDrag!.setLineSegment(lineSegment: lineSegment)
         let endPoint = Circle(center: CGPoint(x: newEndPoint!.x, y: newEndPoint!.y), radius: linePointsRadius)
@@ -196,7 +224,7 @@ class ViewController: UIViewController {
             }
             let touch = touches.first
             touchCurrentPoint = touch!.location(in: self.view)
-            let (_,_) = stickToNearestPoint(currentLine: newLine!, currentPoint: touchCurrentPoint!, &touchCurrentPoint!)
+            let (_,_) = snapToNearestPoint(currentLine: newLine!, currentPoint: touchCurrentPoint!, &touchCurrentPoint!)
             let lineSegment = LineSegment(a: touchStartPoint!, b: touchCurrentPoint!)
             newLine?.setLineSegment(lineSegment: lineSegment)
             let startPoint = Circle(center: CGPoint(x: touchStartPoint!.x, y: touchStartPoint!.y), radius: linePointsRadius)
