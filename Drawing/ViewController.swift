@@ -12,56 +12,82 @@ import Metron
 class ViewController: UIViewController {
     var touchStartPoint : CGPoint?
     var touchCurrentPoint : CGPoint?
-    var newStartPoint : CGPoint?
-    var newEndPoint : CGPoint?
-    var newLine : MyLine? = nil
-    var lines : [MyLine]?
-    var selectedLineForDrag : MyLine? = nil
+    var newLine : HLine? = nil
     var touchStatus : TouchStatus?
+    var graph : Graph = Graph()
+    var touchedPoint : HPoint?
     
     let Configuration = (
          linePointsRadius : CGFloat(5),
          linePointsGrabDistanceTrashold : Float(20),
-         linePointsAttachDistanceTrashold : Float(20),
-         minimumDragDistanceToDrawLine : Float(20)
+         linePointsAttachDistanceTrashold : Float(15),
+         minimumDragDistanceToDrawLine : Float(10)
     )
     
     enum TouchStatus {
         case drawLine
-        case dragLineStartPoint
-        case dragLineEndPoint
+        case dragLine
     }
     
-    class MyLine {
-        var lineSegment : LineSegment?
-        var lineSegmentShape : CAShapeLayer?
-        var startPoint : Circle?
-        var startPointShape : CAShapeLayer?
-        var endPoint : Circle?
-        var endPointShape : CAShapeLayer?
-        var isSticky : Bool?
+    class HPoint {
+        var circle : Circle!
+        var circleShape : CAShapeLayer!
+        var lines : [HLine] = Array()
         
         init() {
-            self.lineSegmentShape = CAShapeLayer()
-            self.startPointShape = CAShapeLayer()
-            self.endPointShape = CAShapeLayer()
+            self.circleShape = CAShapeLayer()
+            //circleShape.path = circle.path
+        }
+        
+        func setCircle(circle : Circle){
+            self.circle = circle
+            circleShape.path = circle.path
+            for line in self.lines{
+                line.updateLineSegmentByPoints()
+            }
+        }
+    }
+    
+    class HLine {
+        var lineSegment : LineSegment
+        var lineSegmentShape : CAShapeLayer
+        var startPoint : HPoint?
+        var endPoint : HPoint?
+       
+        init() {
             self.lineSegment = LineSegment(a: .zero, b: .zero)
+            self.lineSegmentShape = CAShapeLayer()
         }
         
         func setLineSegment(lineSegment : LineSegment){
             self.lineSegment = lineSegment
-            self.lineSegmentShape?.path = lineSegment.path
+            self.lineSegmentShape.path = lineSegment.path
         }
         
-        func setStartPoint(startPoint : Circle){
+        func updateLineSegmentByPoints(){
+            if let startPoint = startPoint {
+                if let endPoint = endPoint{
+                    self.lineSegment.a = startPoint.circle.center
+                    self.lineSegment.b = endPoint.circle.center
+                    self.lineSegmentShape.path = self.lineSegment.path
+                }
+            }
+        }
+        
+        func setStartPoint(startPoint : HPoint){
             self.startPoint = startPoint
-            self.startPointShape?.path = startPoint.path
+            self.updateLineSegmentByPoints()
         }
         
-        func setEndPoint(endPoint : Circle){
+        func setEndPoint(endPoint : HPoint){
             self.endPoint = endPoint
-            self.endPointShape?.path = endPoint.path
+            self.updateLineSegmentByPoints()
         }
+    }
+    
+    class Graph {
+        var points : [HPoint] = Array()
+        var lines : [HLine] = Array()
     }
     
     override func viewDidLoad() {
@@ -72,39 +98,15 @@ class ViewController: UIViewController {
         touchStatus = .drawLine
         let touch = touches.first
         touchStartPoint = touch!.location(in: self.view)
-        let (_,_) = snapToNearestPoint(currentPoint: touchStartPoint!, &touchStartPoint!)
-        if let lines = lines{
-            for line in lines.reversed(){
-                //                let shapePath = line.shape?.path?.copy(strokingWithWidth: 10, lineCap: CGLineCap(rawValue: 0)!, lineJoin: CGLineJoin(rawValue: 0)!, miterLimit: 1)
-                //                if shapePath!.contains(startPoint!){
-                //                    //print("touched...")
-                //                    //line.shape?.strokeColor = UIColor.red.cgColor
-                //                    //selectedLineForDrag = line
-                //                    if line.isDragable {
-                //                        line.isDragable = false
-                //                        let startPointPath = UIBezierPath(ovalIn: CGRect(center: CGPoint(x: line.coordinate!.start.x, y: line.coordinate!.start.y), edges: 0))
-                //                        let endPointPath = UIBezierPath(ovalIn: CGRect(center: CGPoint(x: line.coordinate!.end.x, y: line.coordinate!.end.y), edges: 0))
-                //                        line.startPoint?.path = startPointPath.cgPath
-                //                        line.endPoint?.path = endPointPath.cgPath
-                //                    } else{
-                //                        line.isDragable = true
-                //                        let startPointPath = UIBezierPath(ovalIn: CGRect(center: CGPoint(x: line.coordinate!.start.x, y: line.coordinate!.start.y), edges: 20))
-                //                        let endPointPath = UIBezierPath(ovalIn: CGRect(center: CGPoint(x: line.coordinate!.end.x, y: line.coordinate!.end.y), edges: 20))
-                //                        line.startPoint?.path = startPointPath.cgPath
-                //                        line.endPoint?.path = endPointPath.cgPath
-                //                    }
-                //                    break
-                //                }
-                if line.startPoint!.path!.contains(touchStartPoint!){
-                    touchStatus = .dragLineStartPoint
-                    selectedLineForDrag = line
-                    break
-                }
-                else if line.endPoint!.path!.contains(touchStartPoint!){
-                    touchStatus = .dragLineEndPoint
-                    selectedLineForDrag = line
-                    break
-                }
+        let (nearestPoint,_) = snapToNearestPoint(currentPoint: touchStartPoint!)
+        if nearestPoint != nil {
+            touchStartPoint = nearestPoint?.circle.center
+        }
+        for point in graph.points.reversed() {
+            if point.circle.contains(touchStartPoint!) {
+                touchedPoint = point
+                touchStatus = TouchStatus.dragLine
+                break
             }
         }
     }
@@ -115,135 +117,188 @@ class ViewController: UIViewController {
         return Float(sqrt(pow(deltaX, 2) + pow(deltaY, 2)))
     }
     
-    func snapToNearestPoint(currentLine : MyLine, currentPoint : CGPoint,_ pointToUpdate: inout CGPoint) -> (CGPoint? , Float?){
+    func snapToNearestPoint(currentPoint : HPoint) -> (HPoint? , Float?){
         var nearestPointDistance : Float
-        var nearestPoint : CGPoint
-        var points : [CGPoint] = Array()
-        let linesExceptCurrentLine = lines?.filter({ (line) -> Bool in
-            return line !== currentLine
-        })
-        if linesExceptCurrentLine == nil || linesExceptCurrentLine?.count == 0{
-            return (nil,nil)
+        var nearestPoint : HPoint
+        let points : [HPoint] = graph.points.filter { (point) -> Bool in
+            var canBeAdded = true
+            for line in currentPoint.lines {
+                if line.startPoint === point || line.endPoint === point{
+                    canBeAdded = false
+                    break
+                }
+            }
+            return canBeAdded
         }
-        for line in linesExceptCurrentLine!{
-            let startPoint = CGPoint(x:(line.startPoint?.center.x)!, y:(line.startPoint?.center.y)!)
-            let endPoint = CGPoint(x:(line.endPoint?.center.x)!, y:(line.endPoint?.center.y)!)
-            points.append(startPoint)
-            points.append(endPoint)
+        if points.count == 0 {
+            return(nil, nil)
         }
         nearestPoint = points[0]
-        nearestPointDistance = twoPointsDistance(firstPoint: currentPoint, secondPoint: points[0])
+        nearestPointDistance = twoPointsDistance(firstPoint: currentPoint.circle.center, secondPoint: points[0].circle.center)
         for i in 1..<points.count{
-            let pointsDistance = twoPointsDistance(firstPoint: currentPoint, secondPoint: points[i])
+            let pointsDistance = twoPointsDistance(firstPoint: currentPoint.circle.center, secondPoint: points[i].circle.center)
             if pointsDistance < nearestPointDistance {
                 nearestPoint = points[i]
                 nearestPointDistance = pointsDistance
             }
         }
-        if(nearestPointDistance < Configuration.linePointsAttachDistanceTrashold){
-            pointToUpdate = nearestPoint
+        if nearestPointDistance < Configuration.linePointsAttachDistanceTrashold{
+            return (nearestPoint, nearestPointDistance)
         }
-        return (nearestPoint, nearestPointDistance)
+        return (nil, nil)
     }
     
-    func snapToNearestPoint(currentPoint : CGPoint,_ pointToUpdate: inout CGPoint) -> (CGPoint? , Float?){
+    func snapToNearestPoint(currentPoint : CGPoint) -> (HPoint? , Float?){
         var nearestPointDistance : Float
-        var nearestPoint : CGPoint
-        var points : [CGPoint] = Array()
-        if lines == nil || lines?.count == 0 {
-            return (nil,nil)
-        }
-        for line in lines!{
-            let startPoint = CGPoint(x:(line.startPoint?.center.x)!, y:(line.startPoint?.center.y)!)
-            let endPoint = CGPoint(x:(line.endPoint?.center.x)!, y:(line.endPoint?.center.y)!)
-            points.append(startPoint)
-            points.append(endPoint)
+        var nearestPoint : HPoint
+        let points : [HPoint] = graph.points
+        if points.count == 0 {
+            return(nil, nil)
         }
         nearestPoint = points[0]
-        nearestPointDistance = twoPointsDistance(firstPoint: currentPoint, secondPoint: points[0])
+        nearestPointDistance = twoPointsDistance(firstPoint: currentPoint, secondPoint: points[0].circle.center)
         for i in 1..<points.count{
-            let pointsDistance = twoPointsDistance(firstPoint: currentPoint, secondPoint: points[i])
+            let pointsDistance = twoPointsDistance(firstPoint: currentPoint, secondPoint: points[i].circle.center)
             if pointsDistance < nearestPointDistance {
                 nearestPoint = points[i]
                 nearestPointDistance = pointsDistance
             }
         }
-        if(nearestPointDistance < Configuration.linePointsGrabDistanceTrashold){
-            pointToUpdate = nearestPoint
+        if nearestPointDistance < Configuration.linePointsAttachDistanceTrashold{
+            return (nearestPoint, nearestPointDistance)
         }
-        return (nearestPoint, nearestPointDistance)
-    }
-    
-    func dragLineStartPoint(){
-        let deltaX = touchCurrentPoint!.x - (selectedLineForDrag?.startPoint?.center.x)!
-        let deltaY = touchCurrentPoint!.y - (selectedLineForDrag?.startPoint?.center.y)!
-        newStartPoint = CGPoint(x:(selectedLineForDrag!.startPoint?.center.x)! + deltaX , y:(selectedLineForDrag!.startPoint?.center.y)! + deltaY)
-        newEndPoint = CGPoint(x:(selectedLineForDrag!.endPoint?.center.x)!, y:(selectedLineForDrag!.endPoint?.center.y)!)
-        let (_,_) = snapToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: touchCurrentPoint!, &newStartPoint!)
-        let lineSegment = LineSegment(a: newStartPoint!, b: newEndPoint!)
-        selectedLineForDrag!.setLineSegment(lineSegment: lineSegment)
-        let startPoint = Circle(center: CGPoint(x: newStartPoint!.x, y: newStartPoint!.y), radius: Configuration.linePointsRadius)
-        selectedLineForDrag!.setStartPoint(startPoint: startPoint)
-    }
-    
-    func dragLineEndPoint(){
-        let deltaX = touchCurrentPoint!.x - (selectedLineForDrag?.endPoint?.center.x)!
-        let deltaY = touchCurrentPoint!.y - (selectedLineForDrag?.endPoint?.center.y)!
-        newStartPoint = CGPoint(x:(selectedLineForDrag?.startPoint?.center.x)!, y:(selectedLineForDrag?.startPoint?.center.y)!)
-        newEndPoint = CGPoint(x:(selectedLineForDrag!.endPoint?.center.x)! + deltaX , y:(selectedLineForDrag!.endPoint?.center.y)! + deltaY)
-        let (_,_) = snapToNearestPoint(currentLine: selectedLineForDrag!, currentPoint: touchCurrentPoint!, &newEndPoint!)
-        let lineSegment = LineSegment(a: newStartPoint!, b: newEndPoint!)
-        selectedLineForDrag!.setLineSegment(lineSegment: lineSegment)
-        let endPoint = Circle(center: CGPoint(x: newEndPoint!.x, y: newEndPoint!.y), radius: Configuration.linePointsRadius)
-        selectedLineForDrag!.setEndPoint(endPoint: endPoint)
+        return (nil, nil)
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         let touch = touches.first!
         touchCurrentPoint = touch.location(in: self.view)
         
-        if touchStatus == TouchStatus.dragLineStartPoint {
-            dragLineStartPoint()
-        }
-        else if touchStatus == TouchStatus.dragLineEndPoint {
-            dragLineEndPoint()
+        if touchStatus == TouchStatus.dragLine {
+            let newCircle = Circle(center: CGPoint(x: touchCurrentPoint!.x, y: touchCurrentPoint!.y), radius: Configuration.linePointsRadius)
+            touchedPoint?.setCircle(circle: newCircle)
+            let (nearestPoint,_) = snapToNearestPoint(currentPoint: touchedPoint!)
+            if nearestPoint != nil {
+                touchedPoint?.setCircle(circle: nearestPoint!.circle)
+            }
         }
         else if touchStatus == TouchStatus.drawLine {
-            if newLine != nil || twoPointsDistance(firstPoint: touchStartPoint!, secondPoint: touchCurrentPoint!) > Configuration.minimumDragDistanceToDrawLine{
-                if(newLine == nil){
-                    newLine = MyLine()
-                    newLine?.lineSegmentShape?.strokeColor = UIColor.black.cgColor
-                    newLine?.lineSegmentShape?.lineWidth = 4
-                    newLine?.startPointShape?.strokeColor = UIColor.red.cgColor
-                    newLine?.startPointShape?.lineWidth = 0
-                    newLine?.endPointShape?.strokeColor = UIColor.red.cgColor
-                    newLine?.endPointShape?.lineWidth = 0
-                    if lines?.append(newLine!) == nil{
-                        lines = [newLine!]
-                    }
-                    self.view.layer.addSublayer(newLine!.lineSegmentShape!)
-                    self.view.layer.addSublayer(newLine!.startPointShape!)
-                    self.view.layer.addSublayer(newLine!.endPointShape!)
-                }
+            if newLine != nil || twoPointsDistance(firstPoint: touchStartPoint!, secondPoint: touchCurrentPoint!) > Configuration.minimumDragDistanceToDrawLine {
                 let touch = touches.first
                 touchCurrentPoint = touch!.location(in: self.view)
-                let (_,_) = snapToNearestPoint(currentLine: newLine!, currentPoint: touchCurrentPoint!, &touchCurrentPoint!)
-                let lineSegment = LineSegment(a: touchStartPoint!, b: touchCurrentPoint!)
-                newLine?.setLineSegment(lineSegment: lineSegment)
-                let startPoint = Circle(center: CGPoint(x: touchStartPoint!.x, y: touchStartPoint!.y), radius: Configuration.linePointsRadius)
-                newLine?.setStartPoint(startPoint: startPoint)
-                let endPoint = Circle(center: CGPoint(x: touchCurrentPoint!.x, y: touchCurrentPoint!.y), radius: Configuration.linePointsRadius)
-                newLine?.setEndPoint(endPoint: endPoint)
+                if(newLine == nil){
+                    // add line
+                    newLine = HLine()
+                    newLine?.lineSegmentShape.strokeColor = UIColor.black.cgColor
+                    newLine?.lineSegmentShape.lineWidth = 4
+                    graph.lines.append(newLine!)
+                    self.view.layer.addSublayer(newLine!.lineSegmentShape)
+                    // add start point
+                    let startPoint = HPoint()
+                    let startPointCircle = Circle(center: CGPoint(x: touchStartPoint!.x, y: touchStartPoint!.y), radius: Configuration.linePointsRadius)
+                    startPoint.setCircle(circle: startPointCircle)
+                    graph.points.append(startPoint)
+                    newLine?.setStartPoint(startPoint: startPoint)
+                    startPoint.lines.append(newLine!)
+                    self.view.layer.addSublayer(newLine!.startPoint!.circleShape)
+                    // add end point
+                    let endPoint = HPoint()
+                    let endPointCircle = Circle(center: CGPoint(x: touchCurrentPoint!.x, y: touchCurrentPoint!.y), radius: Configuration.linePointsRadius)
+                    endPoint.setCircle(circle: endPointCircle)
+                    graph.points.append(endPoint)
+                    newLine?.setEndPoint(endPoint: endPoint)
+                    endPoint.lines.append(newLine!)
+                    self.view.layer.addSublayer(newLine!.endPoint!.circleShape)
+                }
+                let endPointCircle = Circle(center: CGPoint(x: touchCurrentPoint!.x, y: touchCurrentPoint!.y), radius: Configuration.linePointsRadius)
+                newLine?.endPoint!.setCircle(circle: endPointCircle)
+                let (nearestPoint,_) = snapToNearestPoint(currentPoint: (newLine!.endPoint!))
+                if nearestPoint != nil {
+                    newLine?.endPoint!.setCircle(circle: nearestPoint!.circle)
+                }
             }
         }
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        if newLine != nil{
-            newLine = nil
+//        // TODO: Merge snaped points.
+//        if(selectedLinesForDragFromStartPoint != nil && selectedLinesForDragFromStartPoint!.count > 0){
+//            let linesThatTheirStartPointIsInTouchedArea = lines?.filter { (line) -> Bool in
+//                    return line.startPoint!.contains(selectedLinesForDragFromStartPoint![0].startPoint!.center)
+//            }
+//            var foundedLine : MyLine? = nil
+//            for line in linesThatTheirStartPointIsInTouchedArea!{
+//                if(line.startPointShape !== selectedLinesForDragFromStartPoint![0].startPointShape){
+//                    foundedLine = line
+//                    break
+//                }
+//            }
+//            if(foundedLine != nil){
+//                selectedLinesForDragFromStartPoint![0].startPoint = nil
+//                selectedLinesForDragFromStartPoint![0].startPointShape?.path = nil
+//                selectedLinesForDragFromStartPoint![0].startPointShape = nil
+//                selectedLinesForDragFromStartPoint![0].startPoint = foundedLine!.startPoint!
+//                selectedLinesForDragFromStartPoint![0].startPointShape = foundedLine!.startPointShape!
+//            }
+////            if(lineThatTheirStartPointIsInTouchedArea != nil) {
+////
+////            }
+////            let lineThatTheirEndPointIsInTouchedArea = lines?.first { (line) -> Bool in
+////                return line.endPoint!.contains(selectedLinesForDragFromStartPoint![0].startPoint!.center)
+////            }
+////            if(lineThatTheirEndPointIsInTouchedArea != nil && lineThatTheirEndPointIsInTouchedArea!.count > 0) {
+////
+////            }
+//        }
+        
+        if touchStatus == TouchStatus.dragLine {
+            let pointsThatCanBeReplacedWithTouchedPoint = graph.points.filter { (point) -> Bool in
+                var canBeAdded = true
+                if point === touchedPoint{
+                    canBeAdded = false
+                }
+                for line in touchedPoint!.lines {
+                    if line.startPoint === point {
+                        canBeAdded = false
+                    }
+                    if line.endPoint === point {
+                        canBeAdded = false
+                    }
+                }
+                return canBeAdded
+            }
+            for point in pointsThatCanBeReplacedWithTouchedPoint {
+                if point.circle.center == touchedPoint?.circle.center {
+                    for line in touchedPoint!.lines{
+                        // TODO: implement setLine method
+                        point.lines.append(line)
+                        if line.startPoint === touchedPoint{
+                            line.setStartPoint(startPoint: point)
+                        }
+                        else if line.endPoint === touchedPoint{
+                            line.setEndPoint(endPoint: point)
+                        }
+                        touchedPoint?.setCircle(circle: Circle(center: .zero, diameter: 0))
+                        touchedPoint?.circleShape.removeFromSuperlayer()
+                    }
+                }
+            }
+            touchedPoint = nil
         }
-        else if selectedLineForDrag != nil{
-            selectedLineForDrag = nil
+        else if touchStatus == TouchStatus.drawLine {
+            let pointsThatCanBeReplacedWithTouchedPoint = graph.points.filter { (point) -> Bool in
+                return point !== newLine?.startPoint && point !== newLine?.endPoint
+            }
+            for point in pointsThatCanBeReplacedWithTouchedPoint {
+                if point.circle.center == newLine?.endPoint?.circle.center {
+                    // TODO: implement setLine method
+                    point.lines.append(newLine!)
+                    newLine?.endPoint!.setCircle(circle: Circle(center: .zero, diameter: 0))
+                    newLine?.endPoint!.circleShape.removeFromSuperlayer()
+                    newLine?.setEndPoint(endPoint: point)
+                }
+            }
+            newLine = nil
         }
     }
     
